@@ -42,8 +42,8 @@
 ```mermaid
 flowchart LR
     subgraph T["一條 Trace — 三個 span 共用 traceId abc123"]
-        A["Span 1<br/>order-service<br/>處理 /orders/A001"] --> B["Span 2<br/>order-service<br/>呼叫 payment"]
-        B --> C["Span 3<br/>payment-service<br/>處理 /payments/A001"]
+        A["Span 1 — order-service<br/>處理 /orders/A001"] --> B["Span 2 — order-service<br/>呼叫 payment"]
+        B --> C["Span 3 — payment-service<br/>處理 /payments/A001"]
     end
 ```
 
