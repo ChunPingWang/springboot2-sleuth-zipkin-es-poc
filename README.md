@@ -55,6 +55,14 @@ for i in $(seq 1 20); do curl -s http://localhost:8081/orders/B$i > /dev/null; d
 - err 開頭的請求會標紅,點入可看到 error tag
 - **Dependencies** 頁籤 → 服務依賴拓撲圖(order → payment)
 
+> 注意:storage 為 Elasticsearch 時,Dependencies 需另跑聚合任務才有資料:
+> ```bash
+> docker run --rm --network sleuth-zipkin-es-poc_default \
+>   -e STORAGE_TYPE=elasticsearch -e ES_HOSTS=http://elasticsearch:9200 -e ES_INDEX=zipkin \
+>   openzipkin/zipkin-dependencies:2.7
+> # 正式環境建議以 cron 每日執行
+> ```
+
 ### 3. 確認 trace 資料真的存在 Elasticsearch
 
 ```bash

@@ -31,3 +31,42 @@ order-service     Up             0.0.0.0:18081->8081/tcp
   → **確認 Zipkin 儲存後端確實為 Elasticsearch**
 - `GET http://localhost:5601/api/status` → HTTP 200(Kibana 正常)
 - ES cluster health:`yellow`(單節點、replicas=0,屬預期狀態)
+
+## 步驟 2:產生流量並驗證 Zipkin 鏈路追蹤
+
+### 流量產生(埠改為 18081)
+
+- `GET /orders/A001` → `{"orderId":"A001","payment":{"status":"PAID","latencyMs":417},"status":"CREATED"}`
+- `GET /orders/A002` → PAID,latencyMs=604
+- `GET /orders/err001` → HTTP 500(payment-service 依設計拋錯)
+- 批次 `B1~B20` 共 20 筆 → 全部成功
+
+### Zipkin API 驗證結果
+
+**服務註冊** — `/api/v2/services` → `["order-service","payment-service"]` ✅
+
+**跨服務 trace(單一 traceId 串起兩服務)** ✅
+
+```
+traceId=5ce102a5fbfe6317
+├─ order-service   span=get /orders/{id}        306864 µs  (server)
+├─ order-service   span=get → /payments/B18     297686 µs  (client,RestTemplate 呼叫)
+└─ payment-service span=get /payments/{orderid} 294349 µs  (server)
+```
+三個 span 共用同一 traceId,證明 Sleuth 的 B3 header 傳遞成功。
+
+**Error trace** ✅ — `traceId=e2b0692fed213163`(err001):
+order-service 與 payment-service 的 span 都帶 `error=500` tag,
+Zipkin UI 會將此 trace 標紅。
+
+**服務依賴拓撲** ✅ — `/api/v2/dependencies` →
+
+```json
+[{"parent":"order-service","child":"payment-service","callCount":23,"errorCount":1}]
+```
+
+callCount=23 與 errorCount=1 與實際流量(2 正常 + 1 錯誤 + 20 批次)完全吻合。
+
+> **發現**:Zipkin 使用 Elasticsearch 儲存時,Dependencies 頁面**不會**即時計算,
+> 必須另外執行 `openzipkin/zipkin-dependencies` 聚合任務(Spark job)。
+> 本次以一次性容器執行後拓撲即出現,已補充至 README。
