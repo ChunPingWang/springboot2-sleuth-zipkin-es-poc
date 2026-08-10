@@ -107,3 +107,26 @@ span 文件內容含 `traceId`、`duration`、`localEndpoint.serviceName`、`kin
 services = [order-service, payment-service]
 
 → **同一個 traceId 同時串起 Zipkin trace 與 ES 日誌,Tracing ↔ Logging 交叉關聯成立。**
+
+## 步驟 4:Kibana log correlation
+
+- 以 Saved Objects API 建立 index pattern `poc-logs-*`(time field: `@timestamp`)✅
+- 透過 Kibana 以 `traceId : "ce25f985f0f47023"` 過濾 → 命中 4 筆,
+  同一請求在 order-service 與 payment-service 的日誌被串在一起 ✅
+
+UI 操作對應:http://localhost:5601 → Discover → 搜尋列輸入 `traceId : "<值>"`。
+
+## 步驟 5:交叉驗證(Zipkin → Kibana 排障動線)
+
+模擬實際排障:在 Zipkin 以 `annotationQuery=error` 找到失敗的 trace
+(`traceId=2103a27f2b89b916`,orderId=errC03),複製 traceId 到 Kibana 過濾:
+
+```
+ INFO [order-service]   收到下單請求 orderId=errC03
+ INFO [payment-service] 收到扣款請求 orderId=errC03,模擬處理耗時 364ms
+ERROR [payment-service] 扣款失敗 orderId=errC03
+ERROR [order-service]   Servlet.service() ... HttpServerErrorException$InternalServerError: 500 ...
+```
+
+→ **從 Zipkin 的 error trace 一鍵切到 Kibana 完整業務日誌(含兩服務的 ERROR),
+README 描述的排障動線驗證通過。** ✅
