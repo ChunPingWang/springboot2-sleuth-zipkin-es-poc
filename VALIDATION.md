@@ -70,3 +70,40 @@ callCount=23 與 errorCount=1 與實際流量(2 正常 + 1 錯誤 + 20 批次)�
 > **發現**:Zipkin 使用 Elasticsearch 儲存時,Dependencies 頁面**不會**即時計算,
 > 必須另外執行 `openzipkin/zipkin-dependencies` 聚合任務(Spark job)。
 > 本次以一次性容器執行後拓撲即出現,已補充至 README。
+
+## 步驟 3:驗證 Elasticsearch 中的 trace 與 log 資料
+
+### Trace 索引 ✅
+
+```
+zipkin-span-2026-08-10        docs.count=69   (trace 資料確實存在 ES)
+zipkin-dependency-2026-08-10  docs.count=1    (依賴聚合結果)
+```
+
+span 文件內容含 `traceId`、`duration`、`localEndpoint.serviceName`、`kind`(CLIENT/SERVER)等欄位。
+
+### Log 索引 — 發現並修正第 4 個問題
+
+| 問題 | 原因 | 修正 |
+|---|---|---|
+| `poc-logs-*` 索引 0 筆文件,Filebeat 內部日誌大量 `Cannot index event (status=400): dropping event!` | logback `customFields` 輸出字串欄位 `"service"`,與 Filebeat ECS 預設 template 中的 `service` **object** 欄位(`service.name` 等)mapping 衝突,所有事件被 ES 拒絕 | 兩服務 logback-spring.xml 的自訂欄位改名 `service` → `service_name`,重置 log volume、刪除壞索引、重建 Filebeat 容器後重新收取 |
+
+修正後 `poc-logs-2026.08.10` 成功寫入 **64 筆**日誌文件。
+
+### traceId 跨服務關聯(核心驗證)✅
+
+以 orderId=C001 的請求為例,`traceId=ce25f985f0f47023`:
+
+**ES 日誌查詢** `term: traceId=ce25f985f0f47023` → 4 筆,跨兩服務、時間順序正確:
+
+```
+03:32:04.472 [  order-service] 收到下單請求 orderId=C001
+03:32:04.560 [payment-service] 收到扣款請求 orderId=C001,模擬處理耗時 461ms
+03:32:05.025 [payment-service] 扣款成功 orderId=C001
+03:32:05.489 [  order-service] payment-service 回應: {orderId=C001, latencyMs=461, status=PAID}
+```
+
+**Zipkin 同一 traceId** `/api/v2/trace/ce25f985f0f47023` → 3 個 span,
+services = [order-service, payment-service]
+
+→ **同一個 traceId 同時串起 Zipkin trace 與 ES 日誌,Tracing ↔ Logging 交叉關聯成立。**

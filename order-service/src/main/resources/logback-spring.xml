@@ -17,7 +17,7 @@
             <maxHistory>3</maxHistory>
         </rollingPolicy>
         <encoder class="net.logstash.logback.encoder.LogstashEncoder">
-            <customFields>{"service":"${appName}"}</customFields>
+            <customFields>{"service_name":"${appName}"}</customFields>
             <!-- LogstashEncoder 預設會輸出全部 MDC,traceId/spanId 自動成為 JSON 欄位 -->
         </encoder>
     </appender>
