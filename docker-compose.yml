@@ -40,7 +40,8 @@ services:
         condition: service_healthy
 
   zipkin:
-    image: openzipkin/zipkin:2.24
+    # 2.24 在 arm64(Apple Silicon)會因 netty-tcnative 崩潰,改用 2.27
+    image: openzipkin/zipkin:2.27
     container_name: zipkin-poc
     environment:
       - STORAGE_TYPE=elasticsearch
@@ -63,7 +64,8 @@ services:
       - SPRING_ZIPKIN_BASE_URL=http://zipkin:9411
       - PAYMENT_SERVICE_URL=http://payment-service:8082
     ports:
-      - "8081:8081"
+      # 主機 8081 已被其他服務占用,對外改用 18081(容器內仍為 8081)
+      - "18081:8081"
     volumes:
       - applogs:/var/log/apps
     depends_on:
