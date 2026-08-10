@@ -3,6 +3,28 @@
 驗證日期:2026-08-10
 驗證環境:macOS (Apple Silicon) + Podman 6.0.1(podman-compose 作為 compose provider)
 
+## 總結
+
+| 驗證項目 | 結果 |
+|---|---|
+| 六個容器全數啟動(ES / Kibana / Zipkin / Filebeat / 兩微服務) | ✅ |
+| Zipkin 儲存後端 = Elasticsearch(/health 確認) | ✅ |
+| Sleuth B3 傳遞:單一 traceId 串起跨服務 3 個 span | ✅ |
+| Error trace 帶 error tag(Zipkin 標紅) | ✅ |
+| 服務依賴拓撲 order→payment(callCount/errorCount 與流量吻合) | ✅ |
+| trace 資料存在 ES(zipkin-span-*、69 筆) | ✅ |
+| JSON 日誌經 Filebeat 進 ES(poc-logs-*、64 筆) | ✅ |
+| Kibana 以 traceId 串聯跨服務日誌 | ✅ |
+| Zipkin error trace → Kibana 完整業務日誌(排障動線) | ✅ |
+
+**驗證過程共發現並修正 4 個問題**(詳見各步驟):
+1. 主機埠 8081 衝突 → 對外改 18081
+2. logstash-logback-encoder 7.4 與 Spring Boot 2.7(logback 1.2)不相容 → 降版 7.2
+3. Zipkin 2.24 在 arm64 SIGSEGV → 升級 2.27
+4. logback 自訂欄位 `service` 與 Filebeat ECS template 衝突導致日誌全數被拒 → 改名 `service_name`
+
+另有一項行為釐清:ES 儲存下 Zipkin Dependencies 頁面需另跑 `zipkin-dependencies` 聚合任務。
+
 ## 步驟 1:環境建置與啟動
 
 ### 過程中發現並修正的問題
