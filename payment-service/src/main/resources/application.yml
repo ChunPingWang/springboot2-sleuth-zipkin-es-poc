@@ -1,0 +1,21 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: payment-service
+  zipkin:
+    base-url: ${SPRING_ZIPKIN_BASE_URL:http://localhost:9411}
+    sender:
+      type: web
+  sleuth:
+    sampler:
+      probability: 1.0           # PoC 全採樣;生產環境建議 0.1
+    propagation:
+      type: B3
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

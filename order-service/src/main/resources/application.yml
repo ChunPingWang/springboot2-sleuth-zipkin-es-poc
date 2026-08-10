@@ -1,0 +1,25 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: order-service          # 會成為 Zipkin 的 serviceName 與 log 欄位
+  zipkin:
+    base-url: ${SPRING_ZIPKIN_BASE_URL:http://localhost:9411}
+    sender:
+      type: web                  # 以 HTTP 上報;正式環境可改 kafka/rabbit 解耦
+  sleuth:
+    sampler:
+      probability: 1.0           # PoC 全採樣;生產環境建議 0.1(10%)避免 ES 爆量
+    propagation:
+      type: B3                   # 與 Zipkin 生態相容的傳遞格式
+
+payment:
+  service:
+    url: ${PAYMENT_SERVICE_URL:http://localhost:8082}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

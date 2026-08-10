@@ -1,0 +1,23 @@
+# Filebeat:收兩個微服務的 JSON log 進 Elasticsearch
+# logstash-logback-encoder 輸出的每行都是一筆 JSON,
+# 其中 traceId / spanId 已是獨立欄位,Kibana 可直接過濾。
+
+filebeat.inputs:
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/apps/*.log
+    json.keys_under_root: true      # 將 JSON 欄位提升到文件根層(traceId 直接可查)
+    json.add_error_key: true
+    json.overwrite_keys: true
+
+output.elasticsearch:
+  hosts: ["http://elasticsearch:9200"]
+  index: "poc-logs-%{+yyyy.MM.dd}"
+
+# 自訂 index 名稱時必須同時指定 template
+setup.template.name: "poc-logs"
+setup.template.pattern: "poc-logs-*"
+setup.ilm.enabled: false
+
+logging.level: warning

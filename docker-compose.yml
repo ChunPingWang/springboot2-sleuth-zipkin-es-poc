@@ -1,0 +1,99 @@
+version: "3.8"
+
+# =========================================================
+# PoC: Spring Boot 2 + Sleuth + Zipkin (storage=Elasticsearch)
+# 架構:
+#   order-service ──HTTP──> payment-service
+#        │  (Sleuth 自動產生/傳遞 B3 traceId)
+#        ├─ spans ──> Zipkin ──> Elasticsearch (zipkin-span-*)
+#        └─ JSON logs ──> Filebeat ──> Elasticsearch (poc-logs-*)
+#   Kibana: 查 log + 用 traceId 關聯; Zipkin UI: 看瀑布圖/拓撲
+# =========================================================
+
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.22
+    container_name: es-poc
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+    ports:
+      - "9200:9200"
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.17.22
+    container_name: kibana-poc
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+  zipkin:
+    image: openzipkin/zipkin:2.24
+    container_name: zipkin-poc
+    environment:
+      - STORAGE_TYPE=elasticsearch
+      - ES_HOSTS=http://elasticsearch:9200
+      # 索引前綴,實際索引為 zipkin-span-yyyy-MM-dd
+      - ES_INDEX=zipkin
+      # PoC 用;正式環境請評估 ES_INDEX_SHARDS / REPLICAS
+      - ES_INDEX_SHARDS=1
+      - ES_INDEX_REPLICAS=0
+    ports:
+      - "9411:9411"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+  order-service:
+    build: ./order-service
+    container_name: order-service
+    environment:
+      - SPRING_ZIPKIN_BASE_URL=http://zipkin:9411
+      - PAYMENT_SERVICE_URL=http://payment-service:8082
+    ports:
+      - "8081:8081"
+    volumes:
+      - applogs:/var/log/apps
+    depends_on:
+      - zipkin
+      - payment-service
+
+  payment-service:
+    build: ./payment-service
+    container_name: payment-service
+    environment:
+      - SPRING_ZIPKIN_BASE_URL=http://zipkin:9411
+    ports:
+      - "8082:8082"
+    volumes:
+      - applogs:/var/log/apps
+    depends_on:
+      - zipkin
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:7.17.22
+    container_name: filebeat-poc
+    user: root
+    command: ["--strict.perms=false"]
+    volumes:
+      - ./filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - applogs:/var/log/apps:ro
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+volumes:
+  esdata:
+  applogs:
