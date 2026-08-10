@@ -40,12 +40,11 @@
    在 Zipkin 看「**慢在哪、錯在哪**」→ 在 Kibana 看「**當時發生了什麼**」。
 
 ```mermaid
-graph LR
-    subgraph trace["一條 Trace(traceId = abc123)"]
-        A["Span 1:order-service<br/>處理 /orders/A001"] --> B["Span 2:order-service<br/>呼叫 payment(CLIENT)"]
-        B --> C["Span 3:payment-service<br/>處理 /payments/A001(SERVER)"]
+flowchart LR
+    subgraph T["一條 Trace — 三個 span 共用 traceId abc123"]
+        A["Span 1<br/>order-service<br/>處理 /orders/A001"] --> B["Span 2<br/>order-service<br/>呼叫 payment"]
+        B --> C["Span 3<br/>payment-service<br/>處理 /payments/A001"]
     end
-    style trace fill:#f5f5f5,stroke:#999
 ```
 
 > 上圖:一個請求產生一條 trace,包含 3 個 span,全部共用同一個 traceId。
