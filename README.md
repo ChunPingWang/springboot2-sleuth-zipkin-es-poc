@@ -96,6 +96,31 @@ curl 'http://localhost:9200/zipkin-span-*/_search?size=1&pretty'
 | `docker-compose.yml` | Zipkin `STORAGE_TYPE=elasticsearch` → trace 存進 ES |
 | `filebeat/filebeat.yml` | `json.keys_under_root: true` 讓 traceId 直接成為文件根欄位 |
 
+## 測試結果
+
+執行 `./e2e-test.sh`(端對端自動化測試,2026-08-10,macOS Apple Silicon + Podman):
+
+| # | 測試項目 | 結果 |
+|---|---|---|
+| T1 | order-service `/actuator/health` = UP | ✅ PASS |
+| T2 | payment-service `/actuator/health` = UP | ✅ PASS |
+| T3 | Zipkin health = UP 且 storage 為 Elasticsearch | ✅ PASS |
+| T4 | Elasticsearch cluster health = green/yellow | ✅ PASS |
+| T5 | Kibana `/api/status` = 200 | ✅ PASS |
+| T6 | `GET /orders/{id}` 回應 CREATED + PAID(跨服務呼叫成功) | ✅ PASS |
+| T7 | `GET /orders/err*` 回應 HTTP 500(錯誤情境如設計) | ✅ PASS |
+| T8 | Zipkin 單一 traceId 的 trace 跨 order/payment 兩服務 | ✅ PASS |
+| T9 | Zipkin error trace 帶 error tag | ✅ PASS |
+| T10 | 依賴拓撲 order-service → payment-service 存在 | ✅ PASS |
+| T11 | ES 索引有資料(zipkin-span-* 99 筆、poc-logs-* 72 筆) | ✅ PASS |
+| T12 | ES 以 traceId 查日誌,涵蓋兩個服務(log correlation) | ✅ PASS |
+| T13 | Kibana 以 traceId 過濾命中跨服務日誌 4 筆 | ✅ PASS |
+
+**合計:13 / 13 全數通過**。完整驗證過程(含發現並修正的 4 個問題)見 [VALIDATION.md](VALIDATION.md)。
+
+> 注意:本環境 order-service 對外埠為 **18081**(主機 8081 被既有服務占用),
+> 測試腳本已使用 18081;若你的環境 8081 可用,可將 docker-compose.yml 與腳本改回。
+
 ## 生產環境調整建議
 
 1. **採樣率**:`sampler.probability` 改 `0.1`(10%),或評估 tail-based sampling
